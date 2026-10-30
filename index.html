@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>無人機救援任務 (Drone Rescue)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for styling -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .tech-font {
+            font-family: 'Share Tech Mono', monospace;
+        }
+        /* 隱藏行動裝置點擊高亮 */
+        -webkit-tap-highlight-color: transparent;
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-3 sm:p-6 overflow-x-hidden">
+
+    <!-- 遊戲主容器 -->
+    <div class="w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl border border-cyan-500/30 overflow-hidden flex flex-col">
+        
+        <!-- 頂部資訊列 -->
+        <div class="bg-slate-950/80 p-4 border-b border-cyan-500/20 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                    <!-- 無人機小圖標 -->
+                    <svg class="w-6 h-6 text-cyan-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l92-7-9-7-9 7v7m0 0l-9-7-9 7v7m9-7V3" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-cyan-400">無人機物資救援行動</h1>
+                    <p class="text-xs text-slate-400">操控無人機，將急救包安全送達綠色目標區域！</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 tech-font">
+                <div class="text-center bg-slate-900 px-4 py-2 rounded-lg border border-slate-700">
+                    <div class="text-xs text-slate-400 uppercase">得分 Score</div>
+                    <div id="score-val" class="text-2xl font-bold text-yellow-400">0</div>
+                </div>
+                <div class="text-center bg-slate-900 px-4 py-2 rounded-lg border border-slate-700">
+                    <div class="text-xs text-slate-400 uppercase">難度 Level</div>
+                    <div id="level-val" class="text-2xl font-bold text-cyan-400">1</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 遊戲主畫面與側邊欄控制 -->
+        <div class="flex flex-col lg:flex-row">
+            
+            <!-- 左側：Canvas 遊戲畫布 -->
+            <div class="flex-1 bg-slate-950 p-4 flex items-center justify-center relative">
+                <!-- 遊戲操作提示 -->
+                <div id="tutorial-overlay" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-10 transition-opacity duration-300">
+                    <div class="w-20 h-20 bg-cyan-500/10 border border-cyan-500 rounded-full flex items-center justify-center mb-4 text-cyan-400">
+                        <svg class="w-10 h-10 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-2xl font-bold mb-2 text-cyan-400">準備好開始救援了嗎？</h2>
+                    <p class="text-slate-300 max-w-md mb-6 text-sm leading-relaxed">
+                        地圖中散落著岩石與樹木。請控制無人機，<span class="text-yellow-400 font-bold">先拾取紅色急救包</span>，再將它安全地<span class="text-green-400 font-bold">送達求救者</span>身旁。小心不要撞到障礙物！
+                    </p>
+                    <button id="start-btn" class="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 active:scale-95 transition text-slate-950 font-bold rounded-lg shadow-lg shadow-cyan-500/20 text-lg">
+                        啟動無人機！
+                    </button>
+                </div>
+
+                <!-- 任務成功 / 失敗 彈出視窗 -->
+                <div id="message-overlay" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center z-10 hidden transition-opacity duration-300">
+                    <div id="overlay-icon" class="w-20 h-20 rounded-full flex items-center justify-center mb-4">
+                        <!-- 動態插入 SVG -->
+                    </div>
+                    <h2 id="overlay-title" class="text-3xl font-bold mb-2"></h2>
+                    <p id="overlay-desc" class="text-slate-300 max-w-sm mb-6"></p>
+                    <div class="flex gap-4">
+                        <button id="overlay-next-btn" class="px-6 py-2.5 bg-green-500 hover:bg-green-400 text-slate-950 font-bold rounded-lg transition active:scale-95">
+                            下一關
+                        </button>
+                        <button id="overlay-reset-btn" class="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition active:scale-95">
+                            重新開始
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 畫布容器，保持比例 -->
+                <div class="w-full aspect-[4/3] max-w-2xl bg-slate-900 rounded-xl overflow-hidden border border-slate-800 relative shadow-inner">
+                    <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+            <!-- 右側 / 下方：控制台與說明 -->
+            <div class="w-full lg:w-80 bg-slate-800/50 p-6 border-t lg:border-t-0 lg:border-l border-slate-700/50 flex flex-col justify-between gap-6">
+                <!-- 任務狀態 -->
+                <div class="space-y-4">
+                    <h3 class="text-xs font-bold tracking-wider text-slate-400 uppercase">任務進度</h3>
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-300">1. 取得急救包:</span>
+                            <span id="task-package" class="text-xs font-bold text-yellow-500 flex items-center gap-1">
+                                <span class="w-2 h-2 rounded-full bg-yellow-500 animate-ping"></span> 執行中
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-300">2. 送達求救者:</span>
+                            <span id="task-deliver" class="text-xs font-bold text-slate-500">等待中</span>
+                        </div>
+                        <!-- 進度條 -->
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="task-progress" class="bg-yellow-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 虛擬遙控器 -->
+                <div class="flex flex-col items-center">
+                    <span class="text-xs font-bold tracking-wider text-slate-400 uppercase mb-4">觸控遙控器</span>
+                    
+                    <div class="relative w-44 h-44">
+                        <!-- 上 -->
+                        <button id="ctrl-up" class="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-slate-700 hover:bg-slate-600 active:bg-cyan-500 active:text-slate-950 border border-slate-600 active:border-cyan-400 rounded-xl flex items-center justify-center text-slate-300 transition duration-75 shadow-lg shadow-black/20">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                        </button>
+                        <!-- 左 -->
+                        <button id="ctrl-left" class="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-slate-700 hover:bg-slate-600 active:bg-cyan-500 active:text-slate-950 border border-slate-600 active:border-cyan-400 rounded-xl flex items-center justify-center text-slate-300 transition duration-75 shadow-lg shadow-black/20">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+                        </button>
+                        <!-- 中心裝飾 -->
+                        <div class="absolute inset-0 m-auto w-10 h-10 rounded-full border-2 border-slate-600/50 flex items-center justify-center">
+                            <div class="w-3 h-3 rounded-full bg-cyan-500/40"></div>
+                        </div>
+                        <!-- 右 -->
+                        <button id="ctrl-right" class="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-slate-700 hover:bg-slate-600 active:bg-cyan-500 active:text-slate-950 border border-slate-600 active:border-cyan-400 rounded-xl flex items-center justify-center text-slate-300 transition duration-75 shadow-lg shadow-black/20">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                        <!-- 下 -->
+                        <button id="ctrl-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-slate-700 hover:bg-slate-600 active:bg-cyan-500 active:text-slate-950 border border-slate-600 active:border-cyan-400 rounded-xl flex items-center justify-center text-slate-300 transition duration-75 shadow-lg shadow-black/20">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 功能按鈕 -->
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="restart-btn" class="w-full py-3 bg-slate-700 hover:bg-slate-600 active:scale-[0.98] transition font-bold rounded-xl border border-slate-600 flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H15m0 0V3" />
+                        </svg>
+                        重設本關 (Reset)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部資訊與按鍵提示 -->
+    <p class="text-xs text-slate-500 mt-4 text-center">
+        電腦玩家可使用鍵盤 <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-400">↑ ↓ ← →</kbd> 或 <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-400">W A S D</kbd> 操作。
+    </p>
+
+    <!-- 遊戲邏輯 JS -->
+    <script>
+        // 取得 DOM 元素
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreVal = document.getElementById('score-val');
+        const levelVal = document.getElementById('level-val');
+        
+        const tutorialOverlay = document.getElementById('tutorial-overlay');
+        const startBtn = document.getElementById('start-btn');
+        
+        const messageOverlay = document.getElementById('message-overlay');
+        const overlayIcon = document.getElementById('overlay-icon');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlayDesc = document.getElementById('overlay-desc');
+        const overlayNextBtn = document.getElementById('overlay-next-btn');
+        const overlayResetBtn = document.getElementById('overlay-reset-btn');
+        
+        const restartBtn = document.getElementById('restart-btn');
+        
+        const taskPackage = document.getElementById('task-package');
+        const taskDeliver = document.getElementById('task-deliver');
+        const taskProgress = document.getElementById('task-progress');
+
+        // 虛擬搖控按鈕
+        const btnUp = document.getElementById('ctrl-up');
+        const btnDown = document.getElementById('ctrl-down');
+        const btnLeft = document.getElementById('ctrl-left');
+        const btnRight = document.getElementById('ctrl-right');
+
+        // 設置畫布實際解析度（高畫質）
+        const BASE_WIDTH = 800;
+        const BASE_HEIGHT = 600;
+        canvas.width = BASE_WIDTH;
+        canvas.height = BASE_HEIGHT;
+
+        // 遊戲狀態變數
+        let score = 0;
+        let level = 1;
+        let gameActive = false;
+        let keys = {};
+        let particles = [];
+        let winTimeout = null;
+
+        // 鼓勵與讚美訊息池
+        const winMessages = [
+            "太棒了！受困者對你感激不盡！",
+            "完美救援！你簡直是無人機王牌機師！",
+            "任務圓滿成功！反應力與控制力無可挑剔！",
+            "神乎其技的救難導航！下一項任務正等著你！",
+            "成功送達！這世界因你更安全了一點！"
+        ];
+
+        // 實體定義
+        let drone = {
+            x: 100,
+            y: 100,
+            radius: 20,
+            vx: 0,
+            vy: 0,
+            speed: 0.7,      // 加速度
+            friction: 0.92,  // 阻尼/摩擦力
+            angle: 0,        // 傾斜視覺角度
+            hasPackage: false
+        };
+
+        let targetPerson = {
+            x: 700,
+            y: 500,
+            radius: 22
+        };
+
+        let medicalPackage = {
+            x: 400,
+            y: 300,
+            radius: 15,
+            active: true
+        };
+
+        let obstacles = [];
+
+        // 初始化/重設遊戲關卡
+        function initLevel() {
+            // 清理定時器與狀態
+            if (winTimeout) clearTimeout(winTimeout);
+            keys = {};
+            particles = [];
+            
+            // 重設無人機
+            drone.x = 100;
+            drone.y = 100;
+            drone.vx = 0;
+            drone.vy = 0;
+            drone.angle = 0;
+            drone.hasPackage = false;
+
+            // 任務指示更新
+            updateTaskUI();
+
+            // 隨機產生急救包位置
+            medicalPackage.active = true;
+            generateSafePosition(medicalPackage, [drone]);
+
+            // 隨機產生求救者位置
+            generateSafePosition(targetPerson, [drone, medicalPackage]);
+
+            // 依等級隨機生成障礙物
+            generateObstacles();
+
+            hideOverlay();
+        }
+
+        // 確保物件不重疊生成
+        function generateSafePosition(entity, checkList) {
+            let safe = false;
+            let attempts = 0;
+            while (!safe && attempts < 100) {
+                entity.x = 80 + Math.random() * (BASE_WIDTH - 160);
+                entity.y = 80 + Math.random() * (BASE_HEIGHT - 160);
+                
+                safe = true;
+                // 檢查與既有物件的距離
+                for (let other of checkList) {
+                    let dx = entity.x - other.x;
+                    let dy = entity.y - other.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 150) { // 保持至少 150px 安全距離
+                        safe = false;
+                        break;
+                    }
+                }
+                attempts++;
+            }
+        }
+
+        // 生成障礙物
+        function generateObstacles() {
+            obstacles = [];
+            // 每關障礙物數量
+            let count = 4 + level * 2; 
+            if (count > 16) count = 16; // 上限
+
+            for (let i = 0; i < count; i++) {
+                let attempts = 0;
+                let obs = { x: 0, y: 0, radius: 25 + Math.random() * 20, type: Math.random() > 0.4 ? 'tree' : 'rock' };
+                let safe = false;
+
+                while (!safe && attempts < 100) {
+                    obs.x = 100 + Math.random() * (BASE_WIDTH - 200);
+                    obs.y = 100 + Math.random() * (BASE_HEIGHT - 200);
+
+                    // 不能靠起點、急救包、求救者太近
+                    let checkPoints = [
+                        {x: 100, y: 100}, // 起點
+                        medicalPackage,
+                        targetPerson
+                    ];
+
+                    safe = true;
+                    for (let pt of checkPoints) {
+                        let dx = obs.x - pt.x;
+                        let dy = obs.y - pt.y;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < obs.radius + 60) {
+                            safe = false;
+                            break;
+                        }
+                    }
+
+                    // 不能靠其他障礙物太近
+                    if (safe) {
+                        for (let other of obstacles) {
+                            let dx = obs.x - other.x;
+                            let dy = obs.y - other.y;
+                            let dist = Math.sqrt(dx*dx + dy*dy);
+                            if (dist < obs.radius + other.radius + 40) {
+                                safe = false;
+                                break;
+                            }
+                        }
+                    }
+                    attempts++;
+                }
+
+                if (safe) {
+                    obstacles.push(obs);
+                }
+            }
+        }
+
+        // 介面更新
+        function updateTaskUI() {
+            if (!drone.hasPackage) {
+                taskPackage.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-500 animate-ping"></span> 執行中`;
+                taskPackage.className = "text-xs font-bold text-yellow-500 flex items-center gap-1.5";
+                taskDeliver.innerHTML = `等待中`;
+                taskDeliver.className = "text-xs font-bold text-slate-500";
+                taskProgress.style.width = "30%";
+                taskProgress.className = "bg-yellow-500 h-full transition-all duration-300";
+            } else {
+                taskPackage.innerHTML = `<svg class="w-4 h-4 text-green-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> 已取得`;
+                taskPackage.className = "text-xs font-bold text-green-500 flex items-center gap-1";
+                taskDeliver.innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></span> 執行中`;
+                taskDeliver.className = "text-xs font-bold text-cyan-400 flex items-center gap-1.5";
+                taskProgress.style.width = "70%";
+                taskProgress.className = "bg-cyan-500 h-full transition-all duration-300";
+            }
+        }
+
+        // 產生粒子特效
+        function spawnParticles(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 3 + 1,
+                    color: color,
+                    alpha: 1,
+                    decay: 0.015 + Math.random() * 0.02
+                });
+            }
+        }
+
+        // 觸控與點擊控制處理 (支援多點/長按)
+        let activeControls = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+
+        function setupControlListeners() {
+            // 實體鍵盤
+            window.addEventListener('keydown', e => {
+                keys[e.key] = true;
+                // 防止方向鍵與空白鍵滾動網頁
+                if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', e => {
+                keys[e.key] = false;
+            });
+
+            // 虛擬搖桿 (支援滑鼠與觸控)
+            const mapButton = (btn, dir) => {
+                const startEvent = (e) => {
+                    e.preventDefault();
+                    activeControls[dir] = true;
+                    btn.classList.add('bg-cyan-500', 'text-slate-950', 'border-cyan-400');
+                };
+                const endEvent = (e) => {
+                    e.preventDefault();
+                    activeControls[dir] = false;
+                    btn.classList.remove('bg-cyan-500', 'text-slate-950', 'border-cyan-400');
+                };
+
+                btn.addEventListener('mousedown', startEvent);
+                btn.addEventListener('mouseup', endEvent);
+                btn.addEventListener('mouseleave', endEvent);
+
+                btn.addEventListener('touchstart', startEvent, { passive: false });
+                btn.addEventListener('touchend', endEvent, { passive: false });
+                btn.addEventListener('touchcancel', endEvent, { passive: false });
+            };
+
+            mapButton(btnUp, 'up');
+            mapButton(btnDown, 'down');
+            mapButton(btnLeft, 'left');
+            mapButton(btnRight, 'right');
+        }
+
+        // 碰撞偵測 (圓形碰撞)
+        function checkCollision(obj1, obj2) {
+            let dx = obj1.x - obj2.x;
+            let dy = obj1.y - obj2.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            return dist < (obj1.radius + obj2.radius);
+        }
+
+        // 遊戲核心邏輯更新
+        function update() {
+            if (!gameActive) return;
+
+            // 1. 移動控制 (整合鍵盤與觸控)
+            let ax = 0;
+            let ay = 0;
+
+            if (keys['ArrowUp'] || keys['w'] || keys['W'] || activeControls.up) ay -= drone.speed;
+            if (keys['ArrowDown'] || keys['s'] || keys['S'] || activeControls.down) ay += drone.speed;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A'] || activeControls.left) ax -= drone.speed;
+            if (keys['ArrowRight'] || keys['d'] || keys['D'] || activeControls.right) ax += drone.speed;
+
+            // 推進物理運算
+            drone.vx += ax;
+            drone.vy += ay;
+            drone.vx *= drone.friction;
+            drone.vy *= drone.friction;
+
+            drone.x += drone.vx;
+            drone.y += drone.vy;
+
+            // 無人機側傾角動態變化 (根據水平速度分量)
+            drone.angle = drone.vx * 0.04;
+
+            // 邊界碰撞限制
+            if (drone.x - drone.radius < 0) {
+                drone.x = drone.radius;
+                drone.vx *= -0.5;
+            }
+            if (drone.x + drone.radius > BASE_WIDTH) {
+                drone.x = BASE_WIDTH - drone.radius;
+                drone.vx *= -0.5;
+            }
+            if (drone.y - drone.radius < 0) {
+                drone.y = drone.radius;
+                drone.vy *= -0.5;
+            }
+            if (drone.y + drone.radius > BASE_HEIGHT) {
+                drone.y = BASE_HEIGHT - drone.radius;
+                drone.vy *= -0.5;
+            }
+
+            // 噴射粒子特效 (引擎效果)
+            if (ax !== 0 || ay !== 0) {
+                if (Math.random() < 0.4) {
+                    particles.push({
+                        x: drone.x - Math.sin(drone.angle)*10,
+                        y: drone.y + 15,
+                        vx: -drone.vx * 0.2 + (Math.random() - 0.5) * 1,
+                        vy: 2 + Math.random() * 2,
+                        radius: Math.random() * 3.5 + 1,
+                        color: 'rgba(34, 211, 238, 0.6)', // 科技藍
+                        alpha: 0.8,
+                        decay: 0.03
+                    });
+                }
+            }
+
+            // 2. 拾取物資偵測
+            if (medicalPackage.active && checkCollision(drone, medicalPackage)) {
+                medicalPackage.active = false;
+                drone.hasPackage = true;
+                spawnParticles(medicalPackage.x, medicalPackage.y, '#f59e0b', 20); // 橘黃色粒子
+                updateTaskUI();
+            }
+
+            // 3. 救援成功偵測
+            if (drone.hasPackage && checkCollision(drone, targetPerson)) {
+                triggerWin();
+            }
+
+            // 4. 障礙物碰撞偵測
+            for (let obs of obstacles) {
+                if (checkCollision(drone, obs)) {
+                    triggerCrash();
+                    break;
+                }
+            }
+
+            // 5. 更新粒子
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // 成功救難邏輯
+        function triggerWin() {
+            gameActive = false;
+            drone.hasPackage = false;
+            
+            // 任務完成進度條
+            taskDeliver.innerHTML = `<svg class="w-4 h-4 text-green-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> 成功送達`;
+            taskDeliver.className = "text-xs font-bold text-green-500 flex items-center gap-1";
+            taskProgress.style.width = "100%";
+            taskProgress.className = "bg-green-500 h-full";
+
+            // 特效爆發
+            spawnParticles(targetPerson.x, targetPerson.y, '#22c55e', 40); // 鮮綠色
+            spawnParticles(drone.x, drone.y, '#3b82f6', 25); // 藍色
+
+            // 更新分數與難度
+            score += 100 + (level * 10);
+            scoreVal.innerText = score;
+            level += 1;
+            levelVal.innerText = level;
+
+            // 延遲跳出訊息視窗
+            winTimeout = setTimeout(() => {
+                const randomMsg = winMessages[Math.floor(Math.random() * winMessages.length)];
+                showOverlay(
+                    'win',
+                    '救援成功！',
+                    randomMsg,
+                    '進入下一關'
+                );
+            }, 800);
+        }
+
+        // 撞機失敗邏輯
+        function triggerCrash() {
+            gameActive = false;
+            // 產生爆炸特效
+            spawnParticles(drone.x, drone.y, '#ef4444', 40); // 紅色爆炸
+            spawnParticles(drone.x, drone.y, '#f97316', 20); // 橘色火焰
+
+            // 降低些微分數，但不歸零
+            score = Math.max(0, score - 50);
+            scoreVal.innerText = score;
+
+            setTimeout(() => {
+                showOverlay(
+                    'lose',
+                    '無人機墜毀！',
+                    '很遺憾，無人機撞擊障礙物損毀。請重新調整路線，再試一次！',
+                    '重新嘗試'
+                );
+            }, 800);
+        }
+
+        // 顯示覆蓋視窗 (Win / Lose)
+        function showOverlay(type, title, desc, buttonText) {
+            messageOverlay.classList.remove('hidden');
+            overlayTitle.innerText = title;
+            overlayDesc.innerText = desc;
+            overlayNextBtn.innerText = buttonText;
+
+            if (type === 'win') {
+                overlayTitle.className = "text-3xl font-bold mb-2 text-green-400";
+                overlayIcon.className = "w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-green-500/10 border border-green-500 text-green-400 animate-bounce";
+                overlayIcon.innerHTML = `
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                `;
+                overlayNextBtn.className = "px-6 py-2.5 bg-green-500 hover:bg-green-400 text-slate-950 font-bold rounded-lg transition active:scale-95";
+                // 贏的時候，此處當作下一關
+                overlayNextBtn.onclick = () => {
+                    initLevel();
+                    gameActive = true;
+                };
+            } else {
+                overlayTitle.className = "text-3xl font-bold mb-2 text-red-500";
+                overlayIcon.className = "w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-red-500/10 border border-red-500 text-red-500 animate-pulse";
+                overlayIcon.innerHTML = `
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                `;
+                overlayNextBtn.className = "px-6 py-2.5 bg-red-500 hover:bg-red-400 text-slate-950 font-bold rounded-lg transition active:scale-95";
+                // 輸的時候，重置關卡
+                overlayNextBtn.onclick = () => {
+                    initLevel();
+                    gameActive = true;
+                };
+            }
+        }
+
+        function hideOverlay() {
+            messageOverlay.classList.add('hidden');
+            tutorialOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // 渲染/繪製畫面
+        function draw() {
+            // 清理畫布 (漸層背景營造縱深感)
+            let bgGrad = ctx.createRadialGradient(BASE_WIDTH/2, BASE_HEIGHT/2, 50, BASE_WIDTH/2, BASE_HEIGHT/2, 400);
+            bgGrad.addColorStop(0, '#1e293b');
+            bgGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+
+            // 繪製地網格線 (科技感)
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.2)';
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < BASE_WIDTH; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, BASE_HEIGHT);
+                ctx.stroke();
+            }
+            for (let y = 0; y < BASE_HEIGHT; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(BASE_WIDTH, y);
+                ctx.stroke();
+            }
+
+            // 1. 繪製障礙物
+            for (let obs of obstacles) {
+                if (obs.type === 'tree') {
+                    // 繪製科技風格「樹木/林區」
+                    ctx.shadowColor = 'rgba(16, 185, 129, 0.3)';
+                    ctx.shadowBlur = 10;
+                    ctx.fillStyle = '#065f46'; // 樹葉深綠
+                    ctx.beginPath();
+                    ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#10b981'; // 樹芯亮綠
+                    ctx.beginPath();
+                    ctx.arc(obs.x, obs.y, obs.radius * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // 重置發光
+                } else {
+                    // 繪製「岩石」
+                    ctx.fillStyle = '#4b5563'; // 灰色
+                    ctx.beginPath();
+                    ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 畫出不規則岩石摺皺
+                    ctx.strokeStyle = '#374151';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x - obs.radius * 0.5, obs.y - obs.radius * 0.2);
+                    ctx.lineTo(obs.x + obs.radius * 0.3, obs.y + obs.radius * 0.5);
+                    ctx.stroke();
+                }
+            }
+
+            // 2. 繪製求救者 (脈衝發光圈 + 人形)
+            let time = Date.now() * 0.005;
+            let pulseRadius = targetPerson.radius + Math.sin(time) * 4;
+            
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(targetPerson.x, targetPerson.y, pulseRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 求救者中心綠色定位標
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.arc(targetPerson.x, targetPerson.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 「救命 H」字樣
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('SOS', targetPerson.x, targetPerson.y);
+
+            // 3. 繪製急救物資包 (若尚未被吃掉)
+            if (medicalPackage.active) {
+                // 發光包裝外圈
+                ctx.shadowColor = '#f59e0b';
+                ctx.shadowBlur = 12;
+                ctx.fillStyle = '#f59e0b';
+                // 四角定位標
+                ctx.fillRect(medicalPackage.x - 12, medicalPackage.y - 12, 24, 24);
+                
+                // 白十字標記
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(medicalPackage.x - 3, medicalPackage.y - 8, 6, 16);
+                ctx.fillRect(medicalPackage.x - 8, medicalPackage.y - 3, 16, 6);
+                ctx.shadowBlur = 0;
+            }
+
+            // 4. 繪製粒子特效
+            for (let p of particles) {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 5. 繪製主角：無人機
+            ctx.save();
+            ctx.translate(drone.x, drone.y);
+            ctx.rotate(drone.angle); // 機身物理傾斜
+
+            // 四翼連桿
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(-22, -22);
+            ctx.lineTo(22, 22);
+            ctx.moveTo(22, -22);
+            ctx.lineTo(-22, 22);
+            ctx.stroke();
+
+            // 四個螺旋槳防護圈
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#06b6d4';
+            const propOffsets = [
+                {x: -22, y: -22}, {x: 22, y: -22},
+                {x: -22, y: 22}, {x: 22, y: 22}
+            ];
+            propOffsets.forEach(pos => {
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 旋轉的螺旋槳葉片 (用動態角度虛化效果表示)
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate(time * 3); // 螺旋槳旋轉
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-8, 0);
+                ctx.lineTo(8, 0);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 無人機核心主機身
+            ctx.shadowColor = '#06b6d4';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 機頭前燈 (小紅點)
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, -10, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 如果已經取得急救包，急救包會掛在無人機腹部
+            if (drone.hasPackage) {
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(-6, -6, 12, 12);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2, -5, 4, 10);
+                ctx.fillRect(-5, -2, 10, 4);
+            }
+
+            ctx.restore();
+        }
+
+        // 遊戲主迴圈
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 註冊基礎事件
+        startBtn.onclick = () => {
+            initLevel();
+            gameActive = true;
+        };
+
+        restartBtn.onclick = () => {
+            // 本關卡重設 (不重置總分，重整配置)
+            initLevel();
+            gameActive = true;
+        };
+
+        overlayResetBtn.onclick = () => {
+            score = 0;
+            level = 1;
+            scoreVal.innerText = score;
+            levelVal.innerText = level;
+            initLevel();
+            gameActive = true;
+        };
+
+        // 啟動監聽與主迴圈
+        setupControlListeners();
+        gameLoop();
+
+    </script>
+</body>
+</html>
