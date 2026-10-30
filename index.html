@@ -67,6 +67,7 @@
                     <p class="text-slate-300 max-w-md mb-6 text-sm leading-relaxed">
                         地圖中散落著岩石與樹木。請控制無人機，<span class="text-yellow-400 font-bold">先拾取紅色急救包</span>，再將它安全地<span class="text-green-400 font-bold">送達求救者</span>身旁。小心不要撞到障礙物！
                     </p>
+                    <input type="text" id="player-name" class="mb-6 px-4 py-3 rounded-lg bg-slate-900 border-2 border-cyan-500/50 text-white text-center focus:outline-none focus:border-cyan-400 transition placeholder-slate-500" placeholder="輸入機師登入名稱" maxlength="12">
                     <button id="start-btn" class="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 active:scale-95 transition text-slate-950 font-bold rounded-lg shadow-lg shadow-cyan-500/20 text-lg">
                         啟動無人機！
                     </button>
@@ -78,7 +79,16 @@
                         <!-- 動態插入 SVG -->
                     </div>
                     <h2 id="overlay-title" class="text-3xl font-bold mb-2"></h2>
-                    <p id="overlay-desc" class="text-slate-300 max-w-sm mb-6"></p>
+                    <p id="overlay-desc" class="text-slate-300 max-w-sm mb-4"></p>
+
+                    <!-- 排行榜區塊 (預設隱藏) -->
+                    <div id="leaderboard-container" class="hidden w-full max-w-xs mb-6 bg-slate-900/80 rounded-xl p-4 border border-slate-700/50 shadow-inner">
+                        <h3 class="text-cyan-400 font-bold mb-3 text-sm tracking-wider uppercase border-b border-slate-700/50 pb-2">🏆 最佳機師排行榜</h3>
+                        <ul id="leaderboard-list" class="text-sm text-left space-y-2 max-h-52 overflow-y-auto pr-2">
+                            <!-- JS 動態填入 -->
+                        </ul>
+                    </div>
+
                     <div class="flex gap-4">
                         <button id="overlay-next-btn" class="px-6 py-2.5 bg-green-500 hover:bg-green-400 text-slate-950 font-bold rounded-lg transition active:scale-95">
                             下一關
@@ -152,7 +162,7 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H15m0 0V3" />
                         </svg>
-                        重設本關 (Reset)
+                        強制重置遊戲 (Reset)
                     </button>
                 </div>
             </div>
@@ -174,11 +184,14 @@
         
         const tutorialOverlay = document.getElementById('tutorial-overlay');
         const startBtn = document.getElementById('start-btn');
+        const playerNameInput = document.getElementById('player-name');
         
         const messageOverlay = document.getElementById('message-overlay');
         const overlayIcon = document.getElementById('overlay-icon');
         const overlayTitle = document.getElementById('overlay-title');
         const overlayDesc = document.getElementById('overlay-desc');
+        const leaderboardContainer = document.getElementById('leaderboard-container');
+        const leaderboardList = document.getElementById('leaderboard-list');
         const overlayNextBtn = document.getElementById('overlay-next-btn');
         const overlayResetBtn = document.getElementById('overlay-reset-btn');
         
@@ -201,6 +214,7 @@
         canvas.height = BASE_HEIGHT;
 
         // 遊戲狀態變數
+        let playerName = "Guest";
         let score = 0;
         let level = 1;
         let gameActive = false;
@@ -578,18 +592,26 @@
             spawnParticles(drone.x, drone.y, '#ef4444', 40); // 紅色爆炸
             spawnParticles(drone.x, drone.y, '#f97316', 20); // 橘色火焰
 
-            // 降低些微分數，但不歸零
-            score = Math.max(0, score - 50);
-            scoreVal.innerText = score;
-
             setTimeout(() => {
                 showOverlay(
                     'lose',
-                    '無人機墜毀！',
-                    '很遺憾，無人機撞擊障礙物損毀。請重新調整路線，再試一次！',
-                    '重新嘗試'
+                    '無人機墜毀！任務失敗',
+                    `很遺憾，無人機撞擊障礙物損毀。\n機師 ${playerName} 本次得分：${score}`,
+                    '重新開始遊戲'
                 );
             }, 800);
+        }
+
+        // 儲存分數並取得排行榜
+        function saveScoreAndGetLeaderboard() {
+            let board = JSON.parse(localStorage.getItem('droneLeaderboard') || '[]');
+            board.push({ name: playerName, score: score, level: level });
+            // 根據分數由高到低排序
+            board.sort((a, b) => b.score - a.score);
+            // 僅保留前三十名
+            board = board.slice(0, 30);
+            localStorage.setItem('droneLeaderboard', JSON.stringify(board));
+            return board;
         }
 
         // 顯示覆蓋視窗 (Win / Lose)
@@ -600,6 +622,7 @@
             overlayNextBtn.innerText = buttonText;
 
             if (type === 'win') {
+                leaderboardContainer.classList.add('hidden');
                 overlayTitle.className = "text-3xl font-bold mb-2 text-green-400";
                 overlayIcon.className = "w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-green-500/10 border border-green-500 text-green-400 animate-bounce";
                 overlayIcon.innerHTML = `
@@ -614,6 +637,16 @@
                     gameActive = true;
                 };
             } else {
+                // 顯示排行榜
+                leaderboardContainer.classList.remove('hidden');
+                const board = saveScoreAndGetLeaderboard();
+                leaderboardList.innerHTML = board.map((entry, index) =>
+                    `<li class="flex justify-between items-center p-2 ${entry.name === playerName && entry.score === score ? 'bg-cyan-900/40 rounded border border-cyan-500/30 font-bold text-white' : 'text-slate-300'}">
+                        <span><span class="text-slate-500 mr-2">#${index + 1}</span> ${entry.name}</span>
+                        <span class="text-yellow-400">${entry.score} pts</span>
+                    </li>`
+                ).join('');
+
                 overlayTitle.className = "text-3xl font-bold mb-2 text-red-500";
                 overlayIcon.className = "w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-red-500/10 border border-red-500 text-red-500 animate-pulse";
                 overlayIcon.innerHTML = `
@@ -622,8 +655,12 @@
                     </svg>
                 `;
                 overlayNextBtn.className = "px-6 py-2.5 bg-red-500 hover:bg-red-400 text-slate-950 font-bold rounded-lg transition active:scale-95";
-                // 輸的時候，重置關卡
+                // 輸的時候，重置關卡與分數
                 overlayNextBtn.onclick = () => {
+                    score = 0;
+                    level = 1;
+                    scoreVal.innerText = score;
+                    levelVal.innerText = level;
                     initLevel();
                     gameActive = true;
                 };
@@ -826,12 +863,26 @@
 
         // 註冊基礎事件
         startBtn.onclick = () => {
+            const nameVal = playerNameInput.value.trim();
+            // 檢查使用者是否輸入名稱
+            if (!nameVal) {
+                playerNameInput.classList.add('border-red-500', 'placeholder-red-400');
+                playerNameInput.placeholder = "請先輸入登入名稱！";
+                return;
+            }
+            // 復原輸入框狀態並記錄名稱
+            playerNameInput.classList.remove('border-red-500', 'placeholder-red-400');
+            playerName = nameVal;
+
             initLevel();
             gameActive = true;
         };
 
         restartBtn.onclick = () => {
-            // 本關卡重設 (不重置總分，重整配置)
+            score = 0;
+            level = 1;
+            scoreVal.innerText = score;
+            levelVal.innerText = level;
             initLevel();
             gameActive = true;
         };
